@@ -72,8 +72,8 @@ const TRANSLATIONS = {
 
     // API Warning Banner
     api_warning_title: 'API Belum Dikonfigurasi',
-    api_warning_body:  'Analisis AI tidak tersedia. Salin',
-    api_warning_body2: 'ke',
+    api_warning_body:  'Analisis AI tidak tersedia. Buat file',
+    api_warning_body2: '',
     api_warning_body3: 'dan atur',
     api_warning_body4: 'untuk mengaktifkan investigasi.',
 
@@ -236,7 +236,7 @@ const TRANSLATIONS = {
     about_stack_title: 'Teknologi yang Digunakan',
     about_stack_frontend: 'HTML5, CSS3, Vanilla JavaScript',
     about_stack_backend:  'Node.js, Express.js',
-    about_stack_ai:       'API Chat Completions kompatibel OpenAI',
+    about_stack_ai:       'Google Gemini API melalui package @google/genai',
     about_stack_storage:  'localStorage browser (riwayat investigasi)',
     about_stack_security: 'Validasi input, sanitasi, variabel lingkungan',
     about_limits_title: 'Keterbatasan Sistem',
@@ -310,8 +310,8 @@ const TRANSLATIONS = {
 
     // API Warning Banner
     api_warning_title: 'API Not Configured',
-    api_warning_body:  'AI analysis is unavailable. Copy',
-    api_warning_body2: 'to',
+    api_warning_body:  'AI analysis is unavailable. Create',
+    api_warning_body2: '',
     api_warning_body3: 'and set your',
     api_warning_body4: 'to enable investigations.',
 
@@ -474,7 +474,7 @@ const TRANSLATIONS = {
     about_stack_title:    'Technology Stack',
     about_stack_frontend: 'HTML5, CSS3, Vanilla JavaScript',
     about_stack_backend:  'Node.js, Express.js',
-    about_stack_ai:       'OpenAI-compatible Chat Completions API',
+    about_stack_ai:       'Google Gemini API via the @google/genai package',
     about_stack_storage:  'Browser localStorage (investigation history)',
     about_stack_security: 'Input validation, sanitization, environment variables',
     about_limits_title: 'System Limitations',

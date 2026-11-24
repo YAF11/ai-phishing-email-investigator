@@ -1,297 +1,196 @@
 # AI Phishing Email Investigator
 
-**IBM SkillsBuild Capstone Project**
+AI Phishing Email Investigator adalah aplikasi web untuk membantu pengguna menganalisis email yang dicurigai sebagai phishing. Aplikasi mengirimkan data email yang diberikan pengguna ke Google Gemini melalui backend, lalu menampilkan laporan investigasi terstruktur dengan indikator, penilaian risiko, tingkat keyakinan, keterbatasan investigasi, dan rekomendasi.
 
-A professional cybersecurity web application that uses **Google Gemini AI** to investigate suspicious emails, identify phishing indicators, evaluate email security risks, and generate structured investigation reports.
+## Tujuan dan fungsi utama
 
----
+Aplikasi ini membantu pengguna:
 
-## Features
+- mengidentifikasi indikator phishing dan rekayasa sosial;
+- meninjau identitas pengirim, struktur URL, header email, serta hasil SPF, DKIM, dan DMARC jika data tersebut diberikan;
+- membedakan observasi terkonfirmasi, indikator mencurigakan, dan asumsi yang belum terverifikasi;
+- memahami penilaian risiko dan keyakinan secara terpisah; dan
+- menyimpan serta membuka kembali riwayat investigasi di browser.
 
-- **AI-Powered Email Analysis** — Submits email data to an OpenAI-compatible API for structured phishing investigation
-- **12-Section Investigation Reports** — Executive summary, sender analysis, social engineering detection, URL analysis, header analysis, evidence classification, risk assessment, and recommendations
-- **Risk & Confidence Assessment** — Separate LOW / MEDIUM / HIGH / CRITICAL risk levels and LOW / MEDIUM / HIGH confidence levels
-- **Evidence Categorization** — Distinguishes confirmed observations, suspicious indicators, and unverified assumptions
-- **Investigation History** — Saves all results to localStorage with view, delete, and clear functionality
-- **Authentication Analysis** — SPF, DKIM, and DMARC evaluation when results are provided
-- **Professional Cybersecurity UI** — Dark navy dashboard with sidebar navigation, responsive layout
-- **Secure Architecture** — API credentials stored server-side only, never exposed to the browser
+Hasil analisis adalah penilaian berbasis AI terhadap informasi yang dikirimkan pengguna, bukan keputusan final tentang apakah email pasti berbahaya atau sah.
 
----
+## Fitur utama
 
-## Project Structure
+- Dashboard statistik investigasi.
+- Form investigasi dengan validasi input.
+- Analisis AI melalui Google Gemini API.
+- Laporan investigasi terstruktur 12 bagian.
+- Penilaian risiko `LOW`, `MEDIUM`, `HIGH`, atau `CRITICAL` serta keyakinan `LOW`, `MEDIUM`, atau `HIGH`.
+- Analisis sender, social engineering, URL/domain, header, dan autentikasi email berdasarkan data yang tersedia.
+- Riwayat di `localStorage` dengan aksi lihat, hapus, dan hapus semua.
+- Terjemahan laporan antara Bahasa Indonesia dan English, dengan cache terjemahan di browser.
+- Health indicator untuk status konfigurasi API.
+- Light mode dan dark mode.
 
-```
-CAPSTONE_IBMXHACKTIV8/
-├── index.html              # Frontend HTML — all pages
-├── style.css               # Cybersecurity dashboard stylesheet
-├── script.js               # Frontend logic — navigation, forms, rendering
-├── server.js               # Node.js/Express backend — API proxy
-├── package.json            # Node.js dependencies
-├── .env.example            # Environment variable template
-├── prompts/
-│   └── system-prompt.md    # AI system prompt with investigation rules
-└── README.md               # This file
-```
+## Teknologi
 
----
+- Frontend: HTML5, CSS3, dan Vanilla JavaScript.
+- Backend: Node.js dan Express.js.
+- AI: Google Gemini API menggunakan package `@google/genai` dan method `models.generateContent`.
+- Konfigurasi: `dotenv` untuk memuat variabel dari `.env`.
+- Middleware: Express JSON/url-encoded parser.
+- Penyimpanan riwayat dan cache terjemahan: `localStorage` browser.
 
-## Prerequisites
+## Alur kerja dan arsitektur
 
-- **Node.js** v18 or later
-- A **Google Gemini API key** — obtain for free at [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-
----
-
-## Installation
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Configure Environment Variables
-
-Copy the example environment file:
-
-```bash
-# Windows
-copy .env.example .env
-
-# macOS / Linux
-cp .env.example .env
+```text
+Browser
+  public/index.html + public/style.css + public/script.js
+        │ HTTP JSON
+        ▼
+Node.js/Express (server.js)
+  validasi dan sanitasi input
+  memuat prompts/system-prompt.md
+  memanggil @google/genai
+        │ HTTPS melalui SDK
+        ▼
+Google Gemini API
+        │ JSON terstruktur
+        ▼
+Browser menampilkan laporan dan menyimpan riwayat di localStorage
 ```
 
-Open `.env` and fill in your Gemini credentials:
+Frontend tidak memanggil Gemini secara langsung. API key hanya dibaca oleh backend dari environment variable.
 
-```env
-GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_MODEL=gemini-2.0-flash
-PORT=3000
-```
+## Persyaratan sistem
 
-| Variable | Description | Default |
-|---|---|---|
-| `GEMINI_API_KEY` | Your Google Gemini API key (from AI Studio) | *(required)* |
-| `GEMINI_MODEL` | Gemini model to use | `gemini-2.0-flash` |
-| `PORT` | Server port | `3000` |
+- Node.js 18 atau lebih baru.
+- npm.
+- Google Gemini API key.
+- Browser modern yang mendukung `localStorage`, Fetch API, dan JavaScript modern.
 
-**Getting a Gemini API Key:**
-1. Go to [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-2. Sign in with your Google account
-3. Click **Create API key**
-4. Copy the key and paste it as `GEMINI_API_KEY` in your `.env` file
+## Instalasi dan konfigurasi
 
----
+1. Install dependency:
 
-## Running the Application
+   ```bash
+   npm install
+   ```
 
-### Start the Backend Server
+2. Buat file `.env` di root project. Contoh:
+
+   ```env
+   GEMINI_API_KEY=your-gemini-api-key-here
+   GEMINI_MODEL=gemini-3.5-flash
+   PORT=3000
+   ```
+
+   `GEMINI_API_KEY` wajib diisi. `GEMINI_MODEL` dan `PORT` bersifat opsional; nilai default masing-masing adalah `gemini-3.5-flash` dan `3000`.
+
+3. Dapatkan API key melalui [Google AI Studio](https://aistudio.google.com/app/apikey). Jangan memasukkan API key asli ke source code, frontend, repository, atau dokumentasi.
+
+## Menjalankan aplikasi
+
+Jalankan server:
 
 ```bash
 npm start
 ```
 
-You should see:
+Buka `http://localhost:3000` di browser. Script `start` dan `dev` pada `package.json` sama-sama menjalankan `node server.js`.
 
-```
-============================================================
-  AI Phishing Email Investigator
-  IBM SkillsBuild Capstone Project
-============================================================
-  Server running at: http://localhost:3000
-  API configured:    YES ✓
-  Model:             gpt-4o
-  Base URL:          https://api.openai.com/v1
-============================================================
-```
+Tanpa `GEMINI_API_KEY`, halaman frontend dan riwayat lokal tetap dapat dibuka, tetapi analisis dan terjemahan yang membutuhkan Gemini tidak tersedia.
 
-### Open the Frontend
-
-Open your browser and navigate to:
-
-```
-http://localhost:3000
-```
-
-The Express server serves the frontend (`index.html`, `style.css`, `script.js`) as static files, so no separate frontend server is needed.
-
----
-
-## Usage
-
-### Performing an Investigation
-
-1. Navigate to the **Investigate** page from the sidebar
-2. Fill in the required fields:
-   - Sender Name
-   - Sender Email Address
-   - Email Subject
-   - Email Body
-3. Optionally provide:
-   - Suspicious URL (paste as plain text — not clicked)
-   - SPF / DKIM / DMARC authentication results
-   - Raw email headers
-4. Click **Analyze Email**
-5. Wait for the AI analysis (typically 10–30 seconds)
-6. Review the structured investigation report
-
-### Viewing History
-
-- Navigate to **History** to see all previous investigations
-- Click **View** to open a full report in a modal
-- Click **Delete** to remove individual records
-- Click **Clear All History** to remove all records
-
----
-
-## API Endpoints
+## Endpoint API
 
 ### `POST /api/analyze`
 
-Submits email data for AI analysis.
+Menganalisis email menggunakan Gemini.
 
-**Request Body:**
+Request JSON:
+
 ```json
 {
   "senderName": "Security Team",
   "senderEmail": "security@example.com",
-  "subject": "Urgent! Account suspended",
-  "emailBody": "...",
-  "url": "http://suspicious-link.example/login",
-  "rawHeaders": "From: ...\nReply-To: ...",
+  "subject": "Urgent: Account suspended",
+  "emailBody": "Email body text",
+  "url": "https://example.com/login",
+  "rawHeaders": "From: ...\\nReply-To: ...",
   "spfResult": "FAIL",
   "dkimResult": "NONE",
-  "dmarcResult": "FAIL"
+  "dmarcResult": "FAIL",
+  "language": "en"
 }
 ```
 
-**Response (success):**
+`senderName`, `senderEmail`, `subject`, dan `emailBody` wajib. Field lain opsional. `language` menerima `id` atau `en`.
+
+Response sukses berbentuk `{ "success": true, "result": { ... } }`. `result` berisi field laporan seperti `executiveSummary`, `emailInfo`, `suspiciousIndicators`, `riskLevel`, `confidenceLevel`, `riskExplanation`, `recommendedActions`, dan `investigationLimitations`.
+
+Response error berbentuk `{ "error": "...", "type": "..." }`, dengan tipe seperti `VALIDATION_ERROR`, `CONFIG_ERROR`, `AUTH_ERROR`, `RATE_LIMIT`, `TIMEOUT`, `SERVICE_ERROR`, atau `INVALID_RESPONSE`.
+
+### `POST /api/translate`
+
+Menerjemahkan laporan yang sudah ada. Endpoint ini tidak menjalankan ulang analisis phishing.
+
+Request JSON:
+
 ```json
 {
-  "success": true,
+  "language": "id",
   "result": {
-    "executiveSummary": "...",
-    "riskLevel": "HIGH",
-    "confidenceLevel": "MEDIUM",
-    "threatClassification": "Potential Phishing",
-    ...
+    "executiveSummary": "Existing report result"
   }
 }
 ```
 
-**Response (error):**
-```json
-{
-  "error": "Error message describing the problem.",
-  "type": "CONFIG_ERROR | AUTH_ERROR | RATE_LIMIT | TIMEOUT | ..."
-}
-```
+`result` harus berupa object laporan lengkap dan `language` harus `id` atau `en`. Response sukses berbentuk `{ "success": true, "result": { ... } }`. Struktur laporan, enum risiko/keyakinan, alamat email, domain, URL, dan nilai teknis tertentu dipertahankan oleh validasi backend.
 
 ### `GET /api/health`
 
-Returns API configuration status.
+Memeriksa status server dan apakah `GEMINI_API_KEY` tersedia. Contoh response:
 
 ```json
 {
   "status": "ok",
   "apiConfigured": true,
   "provider": "Google Gemini",
-  "model": "gemini-2.0-flash",
-  "timestamp": "2026-11-23T06:00:00.000Z"
+  "model": "gemini-3.5-flash",
+  "timestamp": "2026-11-25T00:00:00.000Z"
 }
 ```
 
----
+## Struktur direktori
 
-## Architecture
-
+```text
+.
+├── public/
+│   ├── index.html       # Markup Dashboard, Investigasi, Riwayat, dan Tentang
+│   ├── script.js        # Navigasi, i18n, analisis, terjemahan, rendering, dan localStorage
+│   └── style.css        # Gaya UI, responsive layout, dan light/dark mode
+├── prompts/
+│   └── system-prompt.md # Aturan investigasi dan format keluaran AI
+├── server.js            # Server Express, validasi, endpoint API, dan integrasi Gemini
+├── package.json         # Script dan dependency Node.js
+├── package-lock.json    # Lockfile dependency
+└── README.md            # Dokumentasi project
 ```
-Browser (Frontend)              Server (Backend)               Google Gemini
-─────────────────               ────────────────               ─────────────
-index.html                      server.js                      Gemini API
-style.css        ──HTTP──►      Express                        (AI Studio /
-script.js        POST /api/analyze                              Google Cloud)
-                 ◄──JSON──      • Validates input
-                                • Loads system prompt
-                 localStorage   • @google/genai SDK ──HTTPS──► generateContent
-                 (history)      • Parses JSON       ◄──JSON──
-                                • Returns result
-```
 
-**Key architectural decisions:**
+## Batasan sistem
 
-- The `GEMINI_API_KEY` is stored in a `.env` file and loaded server-side only. It is never sent to the browser.
-- Email content is treated as untrusted input. The backend sanitizes all fields before forwarding to Gemini.
-- `responseMimeType: 'application/json'` instructs Gemini to return structured JSON directly.
-- The system prompt is passed as `config.systemInstruction` and the user message as `contents`.
-- The frontend communicates exclusively with the local Express backend, never directly with Gemini.
+- Analisis hanya menggunakan informasi yang diberikan pengguna dan bersifat probabilistik.
+- Aplikasi tidak melakukan verifikasi real-time terhadap reputasi domain, DNS, URL, redirect, sertifikat TLS, respons HTTP, atau isi website.
+- URL hanya dianalisis secara struktural dan tidak dibuka, dikunjungi, atau dieksekusi oleh aplikasi.
+- SPF, DKIM, dan DMARC hanya dianalisis jika hasilnya diberikan pengguna; aplikasi tidak melakukan pemeriksaan autentikasi independen.
+- Ketepatan laporan bergantung pada kelengkapan dan keakuratan data email.
+- Riwayat dan cache terjemahan berada di `localStorage`, sehingga bersifat lokal pada browser/perangkat dan dapat hilang jika storage dibersihkan.
+- Analisis dan terjemahan memerlukan konfigurasi Gemini API yang valid, koneksi jaringan, serta kuota layanan yang tersedia.
 
----
+## Keamanan dan penggunaan API key
 
-## Security Considerations
+- Simpan `GEMINI_API_KEY` hanya di `.env` pada server.
+- Jangan commit `.env`, membagikan API key, atau menaruhnya di `public/`.
+- Backend membatasi body request hingga 50 KB, memvalidasi field, membatasi panjang input, dan menghapus null byte sebelum memproses data.
+- URL kiriman pengguna tidak dibuka atau di-resolve.
+- Frontend melakukan escaping pada nilai laporan saat dirender ke HTML.
+- Riwayat email disimpan di browser pengguna; jangan masukkan data sensitif jika kebijakan organisasi tidak mengizinkannya.
 
-- API credentials are stored in environment variables — never in frontend code
-- Request body size is limited to 50kb to prevent abuse
-- All user inputs are sanitized (trimmed, null bytes removed) before processing
-- Submitted URLs are never opened, executed, or resolved
-- The frontend escapes all rendered content to prevent XSS
-- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`) are set on all responses
+## Catatan implementasi
 
----
-
-## Investigation Accuracy Notes
-
-This application follows strict accuracy rules:
-
-- HTTP usage, unusual domain names, and domain mismatches are treated as contextual indicators, not standalone proof of phishing
-- URLs are analyzed structurally only — no DNS lookups, reputation checks, or URL visits are performed
-- Authentication results are analyzed only when user-provided — no independent verification is claimed
-- Reserved domains (e.g., `example.com`) are treated as documentation placeholders, not active infrastructure
-- Risk level and confidence level are assessed independently
-- Related indicators are consolidated to prevent double-counting
-
----
-
-## Implemented Features
-
-| Feature | Status |
-|---|---|
-| Dashboard with statistics | ✅ Implemented |
-| Email investigation form with validation | ✅ Implemented |
-| AI-powered analysis via backend API | ✅ Implemented (requires API key) |
-| 12-section structured investigation report | ✅ Implemented |
-| Risk and confidence level display | ✅ Implemented |
-| Investigation history (localStorage) | ✅ Implemented |
-| History modal viewer | ✅ Implemented |
-| Delete / clear history | ✅ Implemented |
-| About page | ✅ Implemented |
-| API health check indicator | ✅ Implemented |
-| Responsive layout (desktop/tablet/mobile) | ✅ Implemented |
-| Input sanitization and validation | ✅ Implemented (frontend + backend) |
-
-## Features Requiring API Configuration
-
-| Feature | Requirement |
-|---|---|
-| AI email analysis | Valid `GEMINI_API_KEY` in `.env` |
-| Model selection | Set `GEMINI_MODEL` in `.env` (default: `gemini-2.0-flash`) |
-
-Without API configuration, the dashboard, history, and all UI features remain fully functional. Only the AI analysis submission will return a configuration error.
-
----
-
-## Supported Gemini Models
-
-| Model | Notes |
-|---|---|
-| `gemini-3.5-flash` | Recommended — fast, capable, strong JSON output |
-| `gemini-3.6-flash` | Alternative flash option |
-| `gemini-3.5-flash-lite` | Lightweight, lower cost |
-
----
-
-## License
-
-MIT — IBM SkillsBuild Capstone Project
+`prompts/system-prompt.md` mengatur analisis berbasis bukti, atribusi sumber temuan ke field email, pemisahan risk dan confidence, serta format JSON laporan. Dokumentasi ini tidak menyatakan adanya verifikasi eksternal yang tidak dilakukan oleh aplikasi.
