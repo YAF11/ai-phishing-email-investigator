@@ -209,6 +209,15 @@ async function callAIAnalysis(systemPrompt, userMessage) {
   } catch (err) {
     clearTimeout(timeoutId);
 
+        console.error('Gemini API Diagnostic:', {
+      name: err?.name,
+      status: err?.status,
+      httpStatus: err?.httpStatus,
+      message: err?.message,
+      cause: err?.cause?.message,
+      errorDetails: err?.errorDetails
+    });
+
     // AbortController fires with DOMException name 'AbortError'
     if (err.name === 'AbortError') {
       throw { type: 'TIMEOUT', message: 'AI analysis request timed out after 60 seconds. Please try again.' };
