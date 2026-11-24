@@ -26,9 +26,6 @@ app.use(express.json({ limit: '50kb' }));
 // Parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
-// Serve static frontend files from project root
-app.use(express.static(path.join(__dirname)));
-
 // Basic security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -36,6 +33,9 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   next();
 });
+
+// Serve static frontend files only from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================================
 // Input Validation Helper
@@ -120,8 +120,8 @@ function buildUserMessage(data) {
   // Determine language instruction to prepend
   const lang = data.language === 'id' ? 'id' : 'en';
   const langInstruction = lang === 'id'
-    ? 'IMPORTANT: Generate the ENTIRE investigation report in Bahasa Indonesia. Translate all section headings, explanations, findings, risk descriptions, recommendations, and summaries into Indonesian. Preserve technical terms such as SPF, DKIM, DMARC, URL, HTTP, HTTPS, phishing, spoofing, and SQL Injection in their original form where appropriate.'
-    : 'Generate the ENTIRE investigation report in English.';
+    ? 'IMPORTANT: Generate the ENTIRE investigation report in Bahasa Indonesia. Translate all section headings, explanations, findings, risk descriptions, recommendations, and summaries into Indonesian. Preserve technical terms such as SPF, DKIM, DMARC, URL, HTTP, HTTPS, phishing, spoofing, and SQL Injection in their original form where appropriate. Do NOT translate non-text enum values: riskLevel must be strictly LOW, MEDIUM, HIGH, or CRITICAL; confidenceLevel must be strictly LOW, MEDIUM, or HIGH; threatClassification must be strictly Potential Phishing, Suspicious Email, No Significant Phishing Indicators Identified, or Inconclusive.'
+    : 'Generate the ENTIRE investigation report in English. Do NOT translate non-text enum values: riskLevel must be strictly LOW, MEDIUM, HIGH, or CRITICAL; confidenceLevel must be strictly LOW, MEDIUM, or HIGH; threatClassification must be strictly Potential Phishing, Suspicious Email, No Significant Phishing Indicators Identified, or Inconclusive.';
 
   const lines = [
     langInstruction,
@@ -136,22 +136,16 @@ function buildUserMessage(data) {
     data.emailBody,
   ];
 
-  if (data.url) {
-    lines.push('', `**URL:** ${data.url}`);
-  }
+  lines.push('', `**URL:** ${data.url && data.url.trim() ? data.url.trim() : 'Not provided by user'}`);
+  lines.push('', `**Raw Email Headers:** ${data.rawHeaders && data.rawHeaders.trim() ? data.rawHeaders.trim() : 'Not provided by user'}`);
 
-  if (data.rawHeaders) {
-    lines.push('', '**Raw Email Headers:**', data.rawHeaders);
-  }
+  const authResults = [
+    `SPF: ${data.spfResult && data.spfResult.trim() ? data.spfResult.trim() : 'Not provided by user'}`,
+    `DKIM: ${data.dkimResult && data.dkimResult.trim() ? data.dkimResult.trim() : 'Not provided by user'}`,
+    `DMARC: ${data.dmarcResult && data.dmarcResult.trim() ? data.dmarcResult.trim() : 'Not provided by user'}`
+  ];
 
-  const authResults = [];
-  if (data.spfResult) authResults.push(`SPF: ${data.spfResult}`);
-  if (data.dkimResult) authResults.push(`DKIM: ${data.dkimResult}`);
-  if (data.dmarcResult) authResults.push(`DMARC: ${data.dmarcResult}`);
-
-  if (authResults.length > 0) {
-    lines.push('', '**Authentication Results:**', ...authResults.map(r => `- ${r}`));
-  }
+  lines.push('', '**Authentication Results:**', ...authResults.map(r => `- ${r}`));
 
   lines.push(
     '',
@@ -171,7 +165,7 @@ function buildUserMessage(data) {
  * Uses @google/genai SDK with GoogleGenAI client.
  * Returns the parsed JSON investigation result.
  */
-async function callAIAnalysis(systemPrompt, userMessage) {
+async function callGeminiJson(systemPrompt, userMessage) {
   const apiKey = process.env.GEMINI_API_KEY;
   const model  = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
@@ -185,8 +179,6 @@ async function callAIAnalysis(systemPrompt, userMessage) {
   // 60-second timeout via AbortController
   const controller = new AbortController();
   const timeoutId  = setTimeout(() => controller.abort(), 60000);
-
-  let responseText;
 
   try {
     const response = await ai.models.generateContent({
@@ -204,7 +196,21 @@ async function callAIAnalysis(systemPrompt, userMessage) {
 
     clearTimeout(timeoutId);
 
-    responseText = response.text;
+    const responseText = response.text;
+    if (!responseText || responseText.trim() === '') {
+      throw { type: 'INVALID_RESPONSE', message: 'Gemini returned an empty response. Please try again.' };
+    }
+
+    let cleanContent = responseText.trim();
+    if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
+    }
+
+    try {
+      return JSON.parse(cleanContent);
+    } catch {
+      throw { type: 'PARSE_ERROR', message: 'Gemini returned a response that could not be parsed as JSON. Please try again.' };
+    }
 
   } catch (err) {
     clearTimeout(timeoutId);
@@ -246,24 +252,13 @@ async function callAIAnalysis(systemPrompt, userMessage) {
     throw { type: 'API_ERROR', message: `Gemini API error: ${msg.substring(0, 200)}` };
   }
 
-  // Validate that we received non-empty text
-  if (!responseText || responseText.trim() === '') {
-    throw { type: 'INVALID_RESPONSE', message: 'Gemini returned an empty response. Please try again.' };
-  }
+}
 
-  // Strip accidental markdown fences (Gemini sometimes wraps JSON even with responseMimeType set)
-  let cleanContent = responseText.trim();
-  if (cleanContent.startsWith('```')) {
-    cleanContent = cleanContent.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
-  }
-
-  // Parse the JSON response
-  let parsedResult;
-  try {
-    parsedResult = JSON.parse(cleanContent);
-  } catch (parseErr) {
-    throw { type: 'PARSE_ERROR', message: 'Gemini returned a response that could not be parsed as JSON. Please try again.' };
-  }
+/**
+ * Analysis-specific validation remains separate from the generic Gemini JSON call.
+ */
+async function callAIAnalysis(systemPrompt, userMessage) {
+  const parsedResult = await callGeminiJson(systemPrompt, userMessage);
 
   // Basic structure validation — ensure all required report fields are present
   const requiredFields = [
@@ -279,7 +274,185 @@ async function callAIAnalysis(systemPrompt, userMessage) {
     }
   }
 
+  // Validate riskLevel enum
+  const validRiskLevels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+  const riskStr = String(parsedResult.riskLevel || '').trim().toUpperCase();
+  if (!validRiskLevels.includes(riskStr)) {
+    throw { type: 'INVALID_RESPONSE', message: `Invalid riskLevel value in Gemini response: "${parsedResult.riskLevel}". Expected: ${validRiskLevels.join(', ')}.` };
+  }
+  parsedResult.riskLevel = riskStr;
+
+  // Validate confidenceLevel enum
+  const validConfidenceLevels = ['LOW', 'MEDIUM', 'HIGH'];
+  const confStr = String(parsedResult.confidenceLevel || '').trim().toUpperCase();
+  if (!validConfidenceLevels.includes(confStr)) {
+    throw { type: 'INVALID_RESPONSE', message: `Invalid confidenceLevel value in Gemini response: "${parsedResult.confidenceLevel}". Expected: ${validConfidenceLevels.join(', ')}.` };
+  }
+  parsedResult.confidenceLevel = confStr;
+
+  // Validate threatClassification enum
+  const validThreatClassifications = [
+    'Potential Phishing',
+    'Suspicious Email',
+    'No Significant Phishing Indicators Identified',
+    'Inconclusive'
+  ];
+  const threatStr = String(parsedResult.threatClassification || '').trim();
+  const matchedThreat = validThreatClassifications.find(t => t.toLowerCase() === threatStr.toLowerCase());
+  if (!matchedThreat) {
+    throw { type: 'INVALID_RESPONSE', message: `Invalid threatClassification value in Gemini response: "${parsedResult.threatClassification}". Expected one of: ${validThreatClassifications.join(', ')}.` };
+  }
+  parsedResult.threatClassification = matchedThreat;
+
+  // Helper for strictly validating plain objects (non-null, non-array object)
+  const isPlainObject = (val) => typeof val === 'object' && val !== null && !Array.isArray(val);
+
+  // Validate string fields (must be typeof 'string', rejecting null, arrays, objects)
+  const requiredStringFields = [
+    'executiveSummary',
+    'senderAnalysis',
+    'socialEngineeringAnalysis',
+    'urlAnalysis',
+    'headerAnalysis',
+    'riskExplanation',
+    'confidenceExplanation'
+  ];
+
+  for (const field of requiredStringFields) {
+    if (typeof parsedResult[field] !== 'string') {
+      throw { type: 'INVALID_RESPONSE', message: `Field "${field}" must be a string in Gemini response.` };
+    }
+  }
+
+  // Validate emailInfo object and its 9 required string properties
+  if (!isPlainObject(parsedResult.emailInfo)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Field "emailInfo" must be an object (not an array) in Gemini response.' };
+  }
+
+  const requiredEmailInfoProps = [
+    'senderName',
+    'senderEmail',
+    'senderDomain',
+    'subject',
+    'urlsProvided',
+    'headersProvided',
+    'spf',
+    'dkim',
+    'dmarc'
+  ];
+
+  for (const prop of requiredEmailInfoProps) {
+    if (typeof parsedResult.emailInfo[prop] !== 'string') {
+      throw { type: 'INVALID_RESPONSE', message: `Property "emailInfo.${prop}" must be a string in Gemini response.` };
+    }
+  }
+
+  // Validate suspiciousIndicators array of objects
+  if (!Array.isArray(parsedResult.suspiciousIndicators)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Field "suspiciousIndicators" must be an array in Gemini response.' };
+  }
+
+  const validIndicatorSeverities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+  for (let i = 0; i < parsedResult.suspiciousIndicators.length; i++) {
+    const item = parsedResult.suspiciousIndicators[i];
+    if (!isPlainObject(item)) {
+      throw { type: 'INVALID_RESPONSE', message: `Item at index ${i} in "suspiciousIndicators" must be an object in Gemini response.` };
+    }
+    if (typeof item.indicator !== 'string') {
+      throw { type: 'INVALID_RESPONSE', message: `Property "indicator" at index ${i} in "suspiciousIndicators" must be a string.` };
+    }
+    if (typeof item.category !== 'string') {
+      throw { type: 'INVALID_RESPONSE', message: `Property "category" at index ${i} in "suspiciousIndicators" must be a string.` };
+    }
+    if (typeof item.assessment !== 'string') {
+      throw { type: 'INVALID_RESPONSE', message: `Property "assessment" at index ${i} in "suspiciousIndicators" must be a string.` };
+    }
+    const itemSeverity = String(item.severity || '').trim().toUpperCase();
+    if (!validIndicatorSeverities.includes(itemSeverity)) {
+      throw { type: 'INVALID_RESPONSE', message: `Property "severity" at index ${i} in "suspiciousIndicators" must be one of: ${validIndicatorSeverities.join(', ')}.` };
+    }
+    item.severity = itemSeverity;
+  }
+
+  // Validate evidenceAnalysis object and its 3 array of strings properties
+  if (!isPlainObject(parsedResult.evidenceAnalysis)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Field "evidenceAnalysis" must be an object (not an array) in Gemini response.' };
+  }
+
+  const evidenceSubFields = ['confirmedObservations', 'suspiciousIndicators', 'unverifiedAssumptions'];
+  for (const sub of evidenceSubFields) {
+    if (!Array.isArray(parsedResult.evidenceAnalysis[sub])) {
+      throw { type: 'INVALID_RESPONSE', message: `Field "evidenceAnalysis.${sub}" must be an array in Gemini response.` };
+    }
+    if (!parsedResult.evidenceAnalysis[sub].every(item => typeof item === 'string')) {
+      throw { type: 'INVALID_RESPONSE', message: `Every item in "evidenceAnalysis.${sub}" must be a string in Gemini response.` };
+    }
+  }
+
+  // Validate recommendedActions and investigationLimitations (array of strings)
+  if (!Array.isArray(parsedResult.recommendedActions) || !parsedResult.recommendedActions.every(item => typeof item === 'string')) {
+    throw { type: 'INVALID_RESPONSE', message: 'Field "recommendedActions" must be an array of strings in Gemini response.' };
+  }
+  if (!Array.isArray(parsedResult.investigationLimitations) || !parsedResult.investigationLimitations.every(item => typeof item === 'string')) {
+    throw { type: 'INVALID_RESPONSE', message: 'Field "investigationLimitations" must be an array of strings in Gemini response.' };
+  }
+
   return parsedResult;
+}
+
+function validateTranslatedResult(source, translated) {
+  const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+  if (!isObject(translated)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Gemini translation did not return a JSON object.' };
+  }
+
+  const compareShape = (expected, actual, path = 'result') => {
+    if (Array.isArray(expected)) {
+      if (!Array.isArray(actual) || expected.length !== actual.length) {
+        throw { type: 'INVALID_RESPONSE', message: `Translation changed array structure at ${path}.` };
+      }
+      expected.forEach((item, index) => compareShape(item, actual[index], `${path}[${index}]`));
+      return;
+    }
+    if (isObject(expected)) {
+      if (!isObject(actual)) throw { type: 'INVALID_RESPONSE', message: `Translation changed object structure at ${path}.` };
+      const expectedKeys = Object.keys(expected).sort();
+      const actualKeys = Object.keys(actual).sort();
+      if (expectedKeys.join('|') !== actualKeys.join('|')) {
+        throw { type: 'INVALID_RESPONSE', message: `Translation changed property structure at ${path}.` };
+      }
+      expectedKeys.forEach(key => compareShape(expected[key], actual[key], `${path}.${key}`));
+    }
+  };
+
+  compareShape(source, translated);
+  if (!['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(translated.riskLevel)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Translation changed riskLevel.' };
+  }
+  if (!['LOW', 'MEDIUM', 'HIGH'].includes(translated.confidenceLevel)) {
+    throw { type: 'INVALID_RESPONSE', message: 'Translation changed confidenceLevel.' };
+  }
+  if (translated.threatClassification !== source.threatClassification) {
+    throw { type: 'INVALID_RESPONSE', message: 'Translation changed threatClassification.' };
+  }
+  const preservedPaths = ['emailInfo.senderEmail', 'emailInfo.senderDomain'];
+  for (const fieldPath of preservedPaths) {
+    const sourceValue = fieldPath.split('.').reduce((value, key) => value?.[key], source);
+    const translatedValue = fieldPath.split('.').reduce((value, key) => value?.[key], translated);
+    if (sourceValue !== translatedValue) {
+      throw { type: 'INVALID_RESPONSE', message: `Translation changed technical value at ${fieldPath}.` };
+    }
+  }
+  const sourceUrl = source.emailInfo?.urlsProvided || '';
+  if (sourceUrl.includes('://') && translated.emailInfo?.urlsProvided !== sourceUrl) {
+    throw { type: 'INVALID_RESPONSE', message: 'Translation changed the provided URL.' };
+  }
+  return translated;
+}
+
+async function callAITranslation(systemPrompt, userMessage, sourceResult) {
+  const translated = await callGeminiJson(systemPrompt, userMessage);
+  return validateTranslatedResult(sourceResult, translated);
 }
 
 // ============================================================
@@ -336,7 +509,7 @@ app.post('/api/analyze', async (req, res) => {
 
     const statusMap = {
       CONFIG_ERROR: 503,
-      AUTH_ERROR: 503,
+      AUTH_ERROR: 401,
       RATE_LIMIT: 429,
       TIMEOUT: 504,
       SERVICE_ERROR: 503,
@@ -372,30 +545,33 @@ app.post('/api/translate', async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid result object.', type: 'VALIDATION_ERROR' });
   }
 
-  // Load system prompt
-  let systemPrompt;
-  try {
-    systemPrompt = loadSystemPrompt();
-  } catch (err) {
-    console.error('System prompt load error:', err.message);
-    return res.status(500).json({ error: 'Server configuration error: system prompt file is missing.', type: 'CONFIG_ERROR' });
-  }
-
-  const langName = language === 'id' ? 'Bahasa Indonesia' : 'English';
+  // Translation has its own system prompt so the investigation workflow and
+  // analysis instructions cannot conflict with this endpoint.
+  const systemPrompt = [
+    'You are a precise JSON localization assistant for an email security report.',
+    `Translate the report's human-readable prose into ${language === 'id' ? 'Bahasa Indonesia' : 'English'}.`,
+    'Return ONLY one valid JSON object with exactly the same structure, property names, arrays, and object nesting.',
+    'Translate every narrative string, including nested strings in emailInfo, suspiciousIndicators, evidenceAnalysis,',
+    'riskExplanation, confidenceExplanation, recommendedActions, and investigationLimitations.',
+    'Preserve these values exactly: riskLevel (LOW, MEDIUM, HIGH, CRITICAL), confidenceLevel (LOW, MEDIUM, HIGH),',
+    'threatClassification enum values (Potential Phishing, Suspicious Email, No Significant Phishing Indicators Identified, Inconclusive),',
+    'email addresses, sender domains, URLs, IP addresses, SPF/DKIM/DMARC values, HTTP/HTTPS, and technical identifiers.',
+    'Do not add, remove, or reorder fields. Do not include markdown or explanatory text outside the JSON.'
+  ].join(' ');
   const langInstruction = language === 'id'
-    ? 'Translate ALL text fields in the following JSON investigation report into Bahasa Indonesia. Preserve technical terms such as SPF, DKIM, DMARC, URL, HTTP, HTTPS, phishing, spoofing in their original form. Do not change any non-text values such as risk levels (LOW/MEDIUM/HIGH/CRITICAL), confidence levels, or threat classification enum values. Return only the translated JSON with the same structure.'
-    : 'Translate ALL text fields in the following JSON investigation report into English. Preserve technical terms. Do not change any non-text values such as risk levels (LOW/MEDIUM/HIGH/CRITICAL), confidence levels, or threat classification enum values. Return only the translated JSON with the same structure.';
+    ? 'Translate the report into Bahasa Indonesia.'
+    : 'Translate the report into English.';
 
   const userMessage = `${langInstruction}\n\nJSON to translate:\n${JSON.stringify(result)}`;
 
   try {
-    const translated = await callAIAnalysis(systemPrompt, userMessage);
+    const translated = await callAITranslation(systemPrompt, userMessage, result);
     return res.json({ success: true, result: translated });
   } catch (err) {
     console.error(`Translation error [${err.type || 'UNKNOWN'}]:`, err.message);
 
     const statusMap = {
-      CONFIG_ERROR: 503, AUTH_ERROR: 503, RATE_LIMIT: 429,
+      CONFIG_ERROR: 503, AUTH_ERROR: 401, RATE_LIMIT: 429,
       TIMEOUT: 504, SERVICE_ERROR: 503, NETWORK_ERROR: 502,
       PARSE_ERROR: 502, INVALID_RESPONSE: 502, API_ERROR: 502,
     };
@@ -426,10 +602,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================================
-// Fallback Route — Serve index.html for all non-API routes
+// 404 Handler — Return 404 for all unhandled routes
 // ============================================================
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+app.use((req, res) => {
+  res.status(404).send('Not Found');
 });
 
 // ============================================================

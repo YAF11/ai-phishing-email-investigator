@@ -1,11 +1,22 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="dark">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Phishing Email Investigator</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Initialize theme BEFORE first paint to prevent FOIC -->
+  <script>
+    (function () {
+      var saved = 'dark';
+      try { saved = localStorage.getItem('phishguard_theme') || 'dark'; } catch (e) { }
+      if (saved !== 'light' && saved !== 'dark') saved = 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+    })();
+  </script>
 </head>
+
 <body>
 
   <!-- ============================================================
@@ -15,17 +26,17 @@
     <div class="sidebar-header">
       <div class="sidebar-logo">
         <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-          <path d="M2 17l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-          <path d="M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          <path d="M2 17l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          <path d="M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
         </svg>
         <span class="logo-text">PhishGuard AI</span>
       </div>
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
         </svg>
       </button>
     </div>
@@ -34,8 +45,10 @@
       <li class="nav-item">
         <a href="#" class="nav-link active" data-page="dashboard">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
           </svg>
           <span class="nav-label" data-i18n="nav_dashboard">Dasbor</span>
         </a>
@@ -43,8 +56,10 @@
       <li class="nav-item">
         <a href="#" class="nav-link" data-page="investigate">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="11" y1="8" x2="11" y2="14" />
+            <line x1="8" y1="11" x2="14" y2="11" />
           </svg>
           <span class="nav-label" data-i18n="nav_investigate">Investigasi</span>
         </a>
@@ -52,8 +67,8 @@
       <li class="nav-item">
         <a href="#" class="nav-link" data-page="history">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
           </svg>
           <span class="nav-label" data-i18n="nav_history">Riwayat</span>
         </a>
@@ -61,9 +76,9 @@
       <li class="nav-item">
         <a href="#" class="nav-link" data-page="about">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span class="nav-label" data-i18n="nav_about">Tentang</span>
         </a>
@@ -90,20 +105,43 @@
     <header class="topbar">
       <button class="topbar-menu-btn" id="topbarMenuBtn" aria-label="Open menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
         </svg>
       </button>
       <div class="topbar-title" id="topbarTitle" data-i18n="topbar_title_dashboard">Dasbor</div>
 
       <div class="topbar-actions">
+        <!-- Theme Toggle -->
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <!-- Sun icon is shown in dark mode → click to go light. -->
+          <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            width="16" height="16">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+          <!-- Moon icon is shown in light mode → click to go dark. -->
+          <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            width="16" height="16">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+          </svg>
+        </button>
+
         <!-- Language Selector -->
         <div class="lang-selector-wrapper">
-          <svg class="lang-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          <svg class="lang-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14"
+            height="14">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
           <select class="lang-selector" id="langSelector" aria-label="Select language">
             <option value="id">ID</option>
@@ -113,7 +151,8 @@
 
         <button class="btn btn-primary btn-sm" id="topbarNewInvestigation">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           <span data-i18n="topbar_new_investigation">Investigasi Baru</span>
         </button>
@@ -127,11 +166,13 @@
       <div class="page-header">
         <div>
           <h1 class="page-title" data-i18n="dash_title">Dasbor Investigasi</h1>
-          <p class="page-subtitle" data-i18n="dash_subtitle">Analisis ancaman phishing berbasis AI dan investigasi keamanan email</p>
+          <p class="page-subtitle" data-i18n="dash_subtitle">Analisis ancaman phishing berbasis AI dan investigasi
+            keamanan email</p>
         </div>
         <button class="btn btn-primary" id="dashNewInvestigation">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           <span data-i18n="dash_new_btn">Investigasi Baru</span>
         </button>
@@ -140,8 +181,9 @@
       <!-- API Warning Banner -->
       <div class="alert alert-warning" id="apiWarningBanner" style="display:none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
         <div>
           <strong data-i18n="api_warning_title">API Belum Dikonfigurasi</strong> —
@@ -160,7 +202,8 @@
         <div class="stat-card">
           <div class="stat-icon stat-icon-blue">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.9 15.9a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.81 5h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 12.69a16 16 0 0 0 6.29 6.29"/>
+              <path
+                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.9 15.9a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.81 5h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 12.69a16 16 0 0 0 6.29 6.29" />
             </svg>
           </div>
           <div class="stat-body">
@@ -171,8 +214,9 @@
         <div class="stat-card">
           <div class="stat-icon stat-icon-red">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <div class="stat-body">
@@ -183,9 +227,9 @@
         <div class="stat-card">
           <div class="stat-icon stat-icon-orange">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
           <div class="stat-body">
@@ -196,8 +240,8 @@
         <div class="stat-card">
           <div class="stat-icon stat-icon-green">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
           </div>
           <div class="stat-body">
@@ -216,10 +260,13 @@
         <div class="card-body">
           <div id="recentActivityEmpty" class="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <p data-i18n="recent_empty">Belum ada investigasi. Mulai investigasi pertama Anda untuk melihat aktivitas di sini.</p>
-            <button class="btn btn-primary btn-sm" id="emptyStateNewInvestigation" data-i18n="recent_start_btn">Mulai Investigasi</button>
+            <p data-i18n="recent_empty">Belum ada investigasi. Mulai investigasi pertama Anda untuk melihat aktivitas di
+              sini.</p>
+            <button class="btn btn-primary btn-sm" id="emptyStateNewInvestigation" data-i18n="recent_start_btn">Mulai
+              Investigasi</button>
           </div>
           <div id="recentActivityTable" style="display:none;">
             <table class="data-table">
@@ -247,7 +294,8 @@
       <div class="page-header">
         <div>
           <h1 class="page-title" data-i18n="inv_title">Investigasi Email</h1>
-          <p class="page-subtitle" data-i18n="inv_subtitle">Kirimkan detail email untuk analisis phishing berbasis AI</p>
+          <p class="page-subtitle" data-i18n="inv_subtitle">Kirimkan detail email untuk analisis phishing berbasis AI
+          </p>
         </div>
       </div>
 
@@ -268,25 +316,27 @@
                   <h3 class="form-section-title" data-i18n="inv_section_sender">Detail Pengirim</h3>
                   <div class="form-row">
                     <div class="form-group">
-                      <label class="form-label" for="inputSenderName" data-i18n="inv_label_sender_name">Nama Pengirim *</label>
+                      <label class="form-label" for="inputSenderName" data-i18n="inv_label_sender_name">Nama Pengirim
+                        *</label>
                       <input type="text" class="form-input" id="inputSenderName" name="senderName"
-                        data-i18n-placeholder="inv_ph_sender_name"
-                        placeholder="mis. Tim Keamanan" maxlength="200" required />
+                        data-i18n-placeholder="inv_ph_sender_name" placeholder="mis. Tim Keamanan" maxlength="200"
+                        required />
                       <span class="form-error" id="errorSenderName"></span>
                     </div>
                     <div class="form-group">
-                      <label class="form-label" for="inputSenderEmail" data-i18n="inv_label_sender_email">Alamat Email Pengirim *</label>
+                      <label class="form-label" for="inputSenderEmail" data-i18n="inv_label_sender_email">Alamat Email
+                        Pengirim *</label>
                       <input type="text" class="form-input" id="inputSenderEmail" name="senderEmail"
-                        data-i18n-placeholder="inv_ph_sender_email"
-                        placeholder="mis. keamanan@contoh.com" maxlength="320" required />
+                        data-i18n-placeholder="inv_ph_sender_email" placeholder="mis. keamanan@contoh.com"
+                        maxlength="320" required />
                       <span class="form-error" id="errorSenderEmail"></span>
                     </div>
                   </div>
                   <div class="form-group">
                     <label class="form-label" for="inputSubject" data-i18n="inv_label_subject">Subjek Email *</label>
                     <input type="text" class="form-input" id="inputSubject" name="subject"
-                      data-i18n-placeholder="inv_ph_subject"
-                      placeholder="mis. Urgen! Akun Anda Akan Ditangguhkan" maxlength="500" required />
+                      data-i18n-placeholder="inv_ph_subject" placeholder="mis. Urgen! Akun Anda Akan Ditangguhkan"
+                      maxlength="500" required />
                     <span class="form-error" id="errorSubject"></span>
                   </div>
                 </div>
@@ -297,8 +347,8 @@
                   <div class="form-group">
                     <label class="form-label" for="inputEmailBody" data-i18n="inv_label_body">Isi Email *</label>
                     <textarea class="form-input form-textarea" id="inputEmailBody" name="emailBody"
-                      data-i18n-placeholder="inv_ph_body"
-                      placeholder="Tempelkan teks isi email lengkap di sini..." maxlength="10000" required rows="8"></textarea>
+                      data-i18n-placeholder="inv_ph_body" placeholder="Tempelkan teks isi email lengkap di sini..."
+                      maxlength="10000" required rows="8"></textarea>
                     <span class="form-error" id="errorEmailBody"></span>
                     <span class="form-hint" id="bodyCharCount">0 / 10.000 karakter</span>
                   </div>
@@ -307,10 +357,10 @@
                       <span data-i18n="inv_label_url">URL / Tautan</span>
                       <span class="form-optional" data-i18n="inv_optional">(opsional)</span>
                     </label>
-                    <input type="text" class="form-input" id="inputUrl" name="url"
-                      data-i18n-placeholder="inv_ph_url"
+                    <input type="text" class="form-input" id="inputUrl" name="url" data-i18n-placeholder="inv_ph_url"
                       placeholder="Tempelkan URL mencurigakan sebagai teks biasa — jangan diklik" maxlength="5000" />
-                    <span class="form-hint" data-i18n="inv_hint_url">Tempelkan URL sebagai teks biasa. URL hanya akan dianalisis secara struktural.</span>
+                    <span class="form-hint" data-i18n="inv_hint_url">Tempelkan URL sebagai teks biasa. URL hanya akan
+                      dianalisis secara struktural.</span>
                   </div>
                 </div>
 
@@ -321,8 +371,9 @@
                       <span data-i18n="inv_section_auth">Autentikasi &amp; Header</span>
                       <span class="form-optional" data-i18n="inv_optional">(opsional)</span>
                     </h3>
-                    <svg class="toggle-chevron" id="advancedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                      <polyline points="6 9 12 15 18 9"/>
+                    <svg class="toggle-chevron" id="advancedChevron" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" width="18" height="18">
+                      <polyline points="6 9 12 15 18 9" />
                     </svg>
                   </div>
                   <div class="form-section-body" id="advancedBody" style="display:none;">
@@ -367,11 +418,13 @@
                       </div>
                     </div>
                     <div class="form-group">
-                      <label class="form-label" for="inputHeaders" data-i18n="inv_label_headers">Header Email Mentah</label>
+                      <label class="form-label" for="inputHeaders" data-i18n="inv_label_headers">Header Email
+                        Mentah</label>
                       <textarea class="form-input form-textarea form-textarea-sm" id="inputHeaders" name="rawHeaders"
-                        data-i18n-placeholder="inv_ph_headers"
-                        placeholder="Tempelkan header email mentah di sini..." maxlength="5000" rows="5"></textarea>
-                      <span class="form-hint" data-i18n="inv_hint_headers">Header From: / Reply-To: / Received: dan hasil autentikasi.</span>
+                        data-i18n-placeholder="inv_ph_headers" placeholder="Tempelkan header email mentah di sini..."
+                        maxlength="5000" rows="5"></textarea>
+                      <span class="form-hint" data-i18n="inv_hint_headers">Header From: / Reply-To: / Received: dan
+                        hasil autentikasi.</span>
                     </div>
                   </div>
                 </div>
@@ -380,14 +433,15 @@
                 <div class="form-actions">
                   <button type="button" class="btn btn-ghost" id="resetFormBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                      <polyline points="1 4 1 10 7 10"/>
-                      <path d="M3.51 15a9 9 0 1 0 .49-3.1"/>
+                      <polyline points="1 4 1 10 7 10" />
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.1" />
                     </svg>
                     <span data-i18n="btn_reset">Reset Formulir</span>
                   </button>
                   <button type="submit" class="btn btn-primary" id="analyzeBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
                     <span data-i18n="btn_analyze">Analisis Email</span>
                   </button>
@@ -405,7 +459,8 @@
           <div class="loading-state" id="loadingState" style="display:none;">
             <div class="spinner"></div>
             <div class="loading-title" id="loadingTitle" data-i18n="loading_title">Menganalisis Email</div>
-            <div class="loading-subtitle" id="loadingSubtitle" data-i18n="loading_subtitle">Investigasi AI sedang berjalan. Ini mungkin memakan waktu hingga 30 detik.</div>
+            <div class="loading-subtitle" id="loadingSubtitle" data-i18n="loading_subtitle">Investigasi AI sedang
+              berjalan. Ini mungkin memakan waktu hingga 30 detik.</div>
           </div>
 
           <!-- Error State -->
@@ -413,9 +468,9 @@
             <div class="card-body">
               <div class="error-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="15" y1="9" x2="9" y2="15"/>
-                  <line x1="9" y1="9" x2="15" y2="15"/>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
               </div>
               <h3 class="error-title" id="errorTitle" data-i18n="error_default_title">Analisis Gagal</h3>
@@ -445,13 +500,19 @@
 
             <!-- Executive Summary -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec1" data-i18n="result_sec1">1. Ringkasan Eksekutif</h2></div>
-              <div class="card-body"><p id="resultExecutiveSummary"></p></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec1" data-i18n="result_sec1">1. Ringkasan Eksekutif</h2>
+              </div>
+              <div class="card-body">
+                <p id="resultExecutiveSummary"></p>
+              </div>
             </div>
 
             <!-- Email Information -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec2" data-i18n="result_sec2">2. Informasi Email</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec2" data-i18n="result_sec2">2. Informasi Email</h2>
+              </div>
               <div class="card-body">
                 <table class="info-table" id="emailInfoTable"></table>
               </div>
@@ -459,40 +520,62 @@
 
             <!-- Sender Identity -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec3" data-i18n="result_sec3">3. Analisis Identitas Pengirim</h2></div>
-              <div class="card-body"><div class="analysis-text" id="resultSenderAnalysis"></div></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec3" data-i18n="result_sec3">3. Analisis Identitas Pengirim</h2>
+              </div>
+              <div class="card-body">
+                <div class="analysis-text" id="resultSenderAnalysis"></div>
+              </div>
             </div>
 
             <!-- Social Engineering -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec4" data-i18n="result_sec4">4. Deteksi Rekayasa Sosial</h2></div>
-              <div class="card-body"><div class="analysis-text" id="resultSocialEngineering"></div></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec4" data-i18n="result_sec4">4. Deteksi Rekayasa Sosial</h2>
+              </div>
+              <div class="card-body">
+                <div class="analysis-text" id="resultSocialEngineering"></div>
+              </div>
             </div>
 
             <!-- URL Analysis -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec5" data-i18n="result_sec5">5. Analisis URL dan Domain</h2></div>
-              <div class="card-body"><div class="analysis-text" id="resultUrlAnalysis"></div></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec5" data-i18n="result_sec5">5. Analisis URL dan Domain</h2>
+              </div>
+              <div class="card-body">
+                <div class="analysis-text" id="resultUrlAnalysis"></div>
+              </div>
             </div>
 
             <!-- Header Analysis -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec6" data-i18n="result_sec6">6. Analisis Header Email &amp; Autentikasi</h2></div>
-              <div class="card-body"><div class="analysis-text" id="resultHeaderAnalysis"></div></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec6" data-i18n="result_sec6">6. Analisis Header Email &amp;
+                  Autentikasi</h2>
+              </div>
+              <div class="card-body">
+                <div class="analysis-text" id="resultHeaderAnalysis"></div>
+              </div>
             </div>
 
             <!-- Suspicious Indicators -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec7" data-i18n="result_sec7">7. Indikator Mencurigakan</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec7" data-i18n="result_sec7">7. Indikator Mencurigakan</h2>
+              </div>
               <div class="card-body">
-                <div id="noIndicatorsMsg" class="info-msg" style="display:none;" data-i18n="no_indicators_msg">Tidak ada indikator mencurigakan signifikan yang teridentifikasi dari informasi yang tersedia.</div>
+                <div id="noIndicatorsMsg" class="info-msg" style="display:none;" data-i18n="no_indicators_msg">Tidak ada
+                  indikator mencurigakan signifikan yang teridentifikasi dari informasi yang tersedia.</div>
                 <div id="indicatorsContainer"></div>
               </div>
             </div>
 
             <!-- Evidence Analysis -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec8" data-i18n="result_sec8">8. Analisis Bukti</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec8" data-i18n="result_sec8">8. Analisis Bukti</h2>
+              </div>
               <div class="card-body">
                 <div class="evidence-grid" id="evidenceGrid"></div>
               </div>
@@ -500,7 +583,10 @@
 
             <!-- Threat Classification + Risk Assessment -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec910" data-i18n="result_sec910">9–10. Klasifikasi Ancaman &amp; Penilaian Risiko</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec910" data-i18n="result_sec910">9–10. Klasifikasi Ancaman &amp;
+                  Penilaian Risiko</h2>
+              </div>
               <div class="card-body">
                 <div class="classification-block" id="classificationBlock"></div>
                 <div class="risk-explanation" id="riskExplanation"></div>
@@ -509,7 +595,9 @@
 
             <!-- Recommended Actions -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec11" data-i18n="result_sec11">11. Tindakan yang Direkomendasikan</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec11" data-i18n="result_sec11">11. Tindakan yang Direkomendasikan</h2>
+              </div>
               <div class="card-body">
                 <ol class="action-list" id="recommendedActions"></ol>
               </div>
@@ -517,7 +605,9 @@
 
             <!-- Investigation Limitations -->
             <div class="card result-card">
-              <div class="card-header"><h2 class="card-title" id="resultSec12" data-i18n="result_sec12">12. Keterbatasan Investigasi</h2></div>
+              <div class="card-header">
+                <h2 class="card-title" id="resultSec12" data-i18n="result_sec12">12. Keterbatasan Investigasi</h2>
+              </div>
               <div class="card-body">
                 <ul class="limitation-list" id="investigationLimitations"></ul>
               </div>
@@ -525,9 +615,12 @@
 
             <!-- Report Footer -->
             <div class="report-footer">
-              <p id="reportFooterText" data-i18n="report_footer">Laporan ini dibuat oleh AI Phishing Email Investigator. Tidak ada verifikasi eksternal, pemindaian URL, pencarian DNS, pemeriksaan autentikasi, atau analisis reputasi domain yang dilakukan secara real-time. Temuan mewakili penilaian analitis berbasis bukti.</p>
+              <p id="reportFooterText" data-i18n="report_footer">Laporan ini dibuat oleh AI Phishing Email Investigator.
+                Tidak ada verifikasi eksternal, pemindaian URL, pencarian DNS, pemeriksaan autentikasi, atau analisis
+                reputasi domain yang dilakukan secara real-time. Temuan mewakili penilaian analitis berbasis bukti.</p>
               <div class="report-actions">
-                <button class="btn btn-ghost btn-sm" id="newInvestigationFromResult" data-i18n="btn_new_from_result">Investigasi Baru</button>
+                <button class="btn btn-ghost btn-sm" id="newInvestigationFromResult"
+                  data-i18n="btn_new_from_result">Investigasi Baru</button>
               </div>
             </div>
 
@@ -548,9 +641,11 @@
         </div>
         <button class="btn btn-danger btn-sm" id="clearAllHistoryBtn" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-            <path d="M10 11v6"/><path d="M14 11v6"/>
-            <path d="M9 6V4h6v2"/>
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+            <path d="M9 6V4h6v2" />
           </svg>
           <span data-i18n="btn_clear_all">Hapus Semua Riwayat</span>
         </button>
@@ -560,11 +655,12 @@
         <div class="card-body">
           <div id="historyEmpty" class="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
             </svg>
             <p data-i18n="hist_empty">Tidak ada riwayat investigasi ditemukan.</p>
-            <button class="btn btn-primary btn-sm" id="historyNewInvestigation" data-i18n="hist_start_btn">Mulai Investigasi Pertama</button>
+            <button class="btn btn-primary btn-sm" id="historyNewInvestigation" data-i18n="hist_start_btn">Mulai
+              Investigasi Pertama</button>
           </div>
           <div id="historyTableWrapper" style="display:none;">
             <table class="data-table">
@@ -585,17 +681,19 @@
         </div>
       </div>
 
-      <!-- History Report Modal -->
-      <div class="modal-overlay" id="historyModal" style="display:none;" role="dialog" aria-modal="true" aria-label="Investigation Report">
-        <div class="modal">
-          <div class="modal-header">
-            <h2 class="modal-title" data-i18n="modal_title">Laporan Investigasi</h2>
-            <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
-          </div>
-          <div class="modal-body" id="modalBody"></div>
-        </div>
-      </div>
     </section>
+
+    <!-- History Report Modal (outside page sections so it's always accessible) -->
+    <div class="modal-overlay" id="historyModal" style="display:none;" role="dialog" aria-modal="true"
+      aria-label="Investigation Report">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title" data-i18n="modal_title">Laporan Investigasi</h2>
+          <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+    </div>
 
     <!-- ============================================================
          PAGE: ABOUT
@@ -611,70 +709,90 @@
       <div class="about-grid">
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title" data-i18n="about_overview_title">Ikhtisar Aplikasi</h2></div>
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="about_overview_title">Ikhtisar Aplikasi</h2>
+          </div>
           <div class="card-body">
-            <p data-i18n="about_overview_p1">PhishGuard AI — AI Phishing Email Investigator adalah aplikasi web keamanan siber profesional yang membantu pengguna menginvestigasi email mencurigakan, mengidentifikasi indikator phishing potensial, dan menghasilkan laporan investigasi keamanan terstruktur.</p>
-            <p style="margin-top:1rem;" data-i18n="about_overview_p2">Aplikasi ini dibangun sebagai Proyek Capstone IBM SkillsBuild, menggabungkan pengembangan web modern dengan analisis keamanan siber berbasis AI untuk mendemonstrasikan keahlian rekayasa perangkat lunak full-stack dan keamanan siber yang praktis.</p>
+            <p data-i18n="about_overview_p1">PhishGuard AI — AI Phishing Email Investigator adalah aplikasi web keamanan
+              siber profesional yang membantu pengguna menginvestigasi email mencurigakan, mengidentifikasi indikator
+              phishing potensial, dan menghasilkan laporan investigasi keamanan terstruktur.</p>
+            <p style="margin-top:1rem;" data-i18n="about_overview_p2">Aplikasi ini dibangun sebagai Proyek Capstone IBM
+              SkillsBuild, menggabungkan pengembangan web modern dengan analisis keamanan siber berbasis AI untuk
+              mendemonstrasikan keahlian rekayasa perangkat lunak full-stack dan keamanan siber yang praktis.</p>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title" data-i18n="about_objectives_title">Tujuan Proyek</h2></div>
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="about_objectives_title">Tujuan Proyek</h2>
+          </div>
           <div class="card-body">
             <ul class="about-list">
-              <li data-i18n="about_obj_1">Menyediakan analisis ancaman email berbasis AI yang dapat diakses oleh pengguna non-teknis</li>
-              <li data-i18n="about_obj_2">Mengidentifikasi indikator phishing melalui investigasi terstruktur berbasis bukti</li>
-              <li data-i18n="about_obj_3">Menghasilkan laporan keamanan profesional dengan penilaian risiko dan keyakinan</li>
+              <li data-i18n="about_obj_1">Menyediakan analisis ancaman email berbasis AI yang dapat diakses oleh
+                pengguna non-teknis</li>
+              <li data-i18n="about_obj_2">Mengidentifikasi indikator phishing melalui investigasi terstruktur berbasis
+                bukti</li>
+              <li data-i18n="about_obj_3">Menghasilkan laporan keamanan profesional dengan penilaian risiko dan
+                keyakinan</li>
               <li data-i18n="about_obj_4">Mendemonstrasikan arsitektur aplikasi web full-stack yang aman</li>
-              <li data-i18n="about_obj_5">Menerapkan pengetahuan keamanan siber dan AI IBM SkillsBuild pada alat dunia nyata</li>
+              <li data-i18n="about_obj_5">Menerapkan pengetahuan keamanan siber dan AI IBM SkillsBuild pada alat dunia
+                nyata</li>
             </ul>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title" data-i18n="about_caps_title">Kemampuan Investigasi</h2></div>
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="about_caps_title">Kemampuan Investigasi</h2>
+          </div>
           <div class="card-body">
             <div class="capability-grid">
               <div class="capability-item">
                 <div class="capability-icon">🔍</div>
                 <div>
                   <strong data-i18n="about_cap1_title">Analisis Identitas Pengirim</strong>
-                  <p data-i18n="about_cap1_desc">Memeriksa nama tampilan, alamat email, dan karakteristik domain untuk indikator spoofing.</p>
+                  <p data-i18n="about_cap1_desc">Memeriksa nama tampilan, alamat email, dan karakteristik domain untuk
+                    indikator spoofing.</p>
                 </div>
               </div>
               <div class="capability-item">
                 <div class="capability-icon">🧠</div>
                 <div>
                   <strong data-i18n="about_cap2_title">Deteksi Rekayasa Sosial</strong>
-                  <p data-i18n="about_cap2_desc">Mengidentifikasi taktik urgensi, peniruan identitas, permintaan kredensial, dan manipulasi psikologis.</p>
+                  <p data-i18n="about_cap2_desc">Mengidentifikasi taktik urgensi, peniruan identitas, permintaan
+                    kredensial, dan manipulasi psikologis.</p>
                 </div>
               </div>
               <div class="capability-item">
                 <div class="capability-icon">🔗</div>
                 <div>
                   <strong data-i18n="about_cap3_title">Analisis URL &amp; Domain</strong>
-                  <p data-i18n="about_cap3_desc">Menganalisis struktur URL, domain crafting, typosquatting, dan pola path mencurigakan.</p>
+                  <p data-i18n="about_cap3_desc">Menganalisis struktur URL, domain crafting, typosquatting, dan pola
+                    path mencurigakan.</p>
                 </div>
               </div>
               <div class="capability-item">
                 <div class="capability-icon">🔐</div>
                 <div>
                   <strong data-i18n="about_cap4_title">Analisis Autentikasi</strong>
-                  <p data-i18n="about_cap4_desc">Mengevaluasi hasil SPF, DKIM, dan DMARC serta menjelaskan implikasi keamanannya.</p>
+                  <p data-i18n="about_cap4_desc">Mengevaluasi hasil SPF, DKIM, dan DMARC serta menjelaskan implikasi
+                    keamanannya.</p>
                 </div>
               </div>
               <div class="capability-item">
                 <div class="capability-icon">📊</div>
                 <div>
                   <strong data-i18n="about_cap5_title">Penilaian Risiko</strong>
-                  <p data-i18n="about_cap5_desc">Menetapkan tingkat risiko (RENDAH/SEDANG/TINGGI/KRITIS) dan keyakinan secara terpisah dengan penalaran berbasis bukti.</p>
+                  <p data-i18n="about_cap5_desc">Menetapkan tingkat risiko (RENDAH/SEDANG/TINGGI/KRITIS) dan keyakinan
+                    secara terpisah dengan penalaran berbasis bukti.</p>
                 </div>
               </div>
               <div class="capability-item">
                 <div class="capability-icon">📋</div>
                 <div>
                   <strong data-i18n="about_cap6_title">Pelaporan Terstruktur</strong>
-                  <p data-i18n="about_cap6_desc">Menghasilkan laporan investigasi 12 bagian yang membedakan observasi terkonfirmasi, indikator, dan asumsi belum terverifikasi.</p>
+                  <p data-i18n="about_cap6_desc">Menghasilkan laporan investigasi 12 bagian yang membedakan observasi
+                    terkonfirmasi, indikator, dan asumsi belum terverifikasi.</p>
                 </div>
               </div>
             </div>
@@ -682,28 +800,45 @@
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title" data-i18n="about_stack_title">Teknologi yang Digunakan</h2></div>
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="about_stack_title">Teknologi yang Digunakan</h2>
+          </div>
           <div class="card-body">
             <div class="tech-stack">
-              <div class="tech-item"><span class="tech-badge tech-frontend">Frontend</span> <span data-i18n="about_stack_frontend">HTML5, CSS3, Vanilla JavaScript</span></div>
-              <div class="tech-item"><span class="tech-badge tech-backend">Backend</span> <span data-i18n="about_stack_backend">Node.js, Express.js</span></div>
-              <div class="tech-item"><span class="tech-badge tech-ai">AI</span> <span data-i18n="about_stack_ai">API Chat Completions kompatibel OpenAI</span></div>
-              <div class="tech-item"><span class="tech-badge tech-storage">Storage</span> <span data-i18n="about_stack_storage">localStorage browser (riwayat investigasi)</span></div>
-              <div class="tech-item"><span class="tech-badge tech-security">Security</span> <span data-i18n="about_stack_security">Validasi input, sanitasi, variabel lingkungan</span></div>
+              <div class="tech-item"><span class="tech-badge tech-frontend">Frontend</span> <span
+                  data-i18n="about_stack_frontend">HTML5, CSS3, Vanilla JavaScript</span></div>
+              <div class="tech-item"><span class="tech-badge tech-backend">Backend</span> <span
+                  data-i18n="about_stack_backend">Node.js, Express.js</span></div>
+              <div class="tech-item">
+                <span class="tech-badge tech-ai">AI</span>
+                <span data-i18n="about_stack_ai">Google Gemini API</span>
+              </div>
+              <div class="tech-item"><span class="tech-badge tech-storage">Storage</span> <span
+                  data-i18n="about_stack_storage">localStorage browser (riwayat investigasi)</span></div>
+              <div class="tech-item"><span class="tech-badge tech-security">Security</span> <span
+                  data-i18n="about_stack_security">Validasi input, sanitasi, variabel lingkungan</span></div>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title" data-i18n="about_limits_title">Keterbatasan Sistem</h2></div>
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="about_limits_title">Keterbatasan Sistem</h2>
+          </div>
           <div class="card-body">
             <ul class="about-list about-list-warning">
-              <li data-i18n="about_limit_1">Analisis didasarkan hanya pada informasi yang dikirimkan oleh pengguna. Tidak ada DNS real-time, pemindaian URL, atau pemeriksaan reputasi domain yang dilakukan.</li>
-              <li data-i18n="about_limit_2">URL hanya dianalisis secara struktural. Aplikasi tidak pernah membuka, menelusuri, atau mengeksekusi URL yang dikirimkan.</li>
-              <li data-i18n="about_limit_3">Hasil investigasi bergantung pada akurasi dan kelengkapan data email yang dikirimkan.</li>
-              <li data-i18n="about_limit_4">Analisis AI bersifat probabilistik dan berbasis bukti. Laporan adalah penilaian investigatif, bukan penetapan pasti apakah email berbahaya atau sah.</li>
-              <li data-i18n="about_limit_5">Riwayat investigasi disimpan di localStorage browser dan bersifat spesifik perangkat.</li>
-              <li data-i18n="about_limit_6">Analisis AI memerlukan konfigurasi kunci API yang valid. Tanpanya, fitur analisis tidak tersedia.</li>
+              <li data-i18n="about_limit_1">Analisis didasarkan hanya pada informasi yang dikirimkan oleh pengguna.
+                Tidak ada DNS real-time, pemindaian URL, atau pemeriksaan reputasi domain yang dilakukan.</li>
+              <li data-i18n="about_limit_2">URL hanya dianalisis secara struktural. Aplikasi tidak pernah membuka,
+                menelusuri, atau mengeksekusi URL yang dikirimkan.</li>
+              <li data-i18n="about_limit_3">Hasil investigasi bergantung pada akurasi dan kelengkapan data email yang
+                dikirimkan.</li>
+              <li data-i18n="about_limit_4">Analisis AI bersifat probabilistik dan berbasis bukti. Laporan adalah
+                penilaian investigatif, bukan penetapan pasti apakah email berbahaya atau sah.</li>
+              <li data-i18n="about_limit_5">Riwayat investigasi disimpan di localStorage browser dan bersifat spesifik
+                perangkat.</li>
+              <li data-i18n="about_limit_6">Analisis AI memerlukan konfigurasi kunci API yang valid. Tanpanya, fitur
+                analisis tidak tersedia.</li>
             </ul>
           </div>
         </div>
@@ -715,4 +850,5 @@
 
   <script src="script.js"></script>
 </body>
+
 </html>

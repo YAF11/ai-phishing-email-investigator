@@ -10,6 +10,8 @@
 // ============================================================
 const STORAGE_KEY    = 'phishguard_history';
 const LANG_KEY       = 'phishguard_language';
+const THEME_KEY      = 'phishguard_theme';
+const TRANSLATION_CACHE_KEY = 'phishguard_translation_cache_v2';
 const MAX_HISTORY    = 100;
 const API_ENDPOINT       = '/api/analyze';
 const HEALTH_ENDPOINT    = '/api/health';
@@ -44,6 +46,8 @@ const TRANSLATIONS = {
     lang_label: 'Bahasa',
     lang_id:    'Bahasa Indonesia',
     lang_en:    'English',
+    theme_to_light: 'Beralih ke mode terang',
+    theme_to_dark:  'Beralih ke mode gelap',
 
     // Dashboard
     dash_title:    'Dasbor Investigasi',
@@ -247,7 +251,13 @@ const TRANSLATIONS = {
     translating_title:    'Menerjemahkan Laporan',
     translating_subtitle: 'Menerjemahkan laporan ke bahasa yang dipilih...',
     error_translate_title: 'Terjemahan Gagal',
-    error_translate_msg:   'Gagal menerjemahkan laporan. Laporan asli tetap ditampilkan.',
+    error_translate_msg:   'Gagal menerjemahkan laporan. Laporan asli tidak diubah; gunakan tombol untuk melihatnya.',
+    error_translate_unavailable: 'Layanan Gemini sedang tidak tersedia. Silakan coba lagi nanti.',
+    error_translate_rate_limit: 'Batas permintaan Gemini tercapai. Silakan tunggu dan coba lagi.',
+    error_translate_auth: 'Autentikasi Gemini gagal. Periksa konfigurasi API.',
+    error_translate_timeout: 'Permintaan terjemahan terlalu lama. Silakan coba lagi.',
+    btn_show_original: 'Lihat laporan asli',
+    translation_original_preserved: 'Laporan asli tetap tersimpan dan tidak diubah.',
   },
 
   en: {
@@ -274,6 +284,8 @@ const TRANSLATIONS = {
     lang_label: 'Language',
     lang_id:    'Bahasa Indonesia',
     lang_en:    'English',
+    theme_to_light: 'Switch to light mode',
+    theme_to_dark:  'Switch to dark mode',
 
     // Dashboard
     dash_title:    'Investigation Dashboard',
@@ -477,7 +489,13 @@ const TRANSLATIONS = {
     translating_title:    'Translating Report',
     translating_subtitle: 'Translating the report into the selected language...',
     error_translate_title: 'Translation Failed',
-    error_translate_msg:   'Failed to translate the report. The original report is still displayed.',
+    error_translate_msg:   'Failed to translate the report. The original report is unchanged; use the button to view it.',
+    error_translate_unavailable: 'Gemini service is temporarily unavailable. Please try again later.',
+    error_translate_rate_limit: 'Gemini request limit reached. Please wait and try again.',
+    error_translate_auth: 'Gemini authentication failed. Check the API configuration.',
+    error_translate_timeout: 'The translation request timed out. Please try again.',
+    btn_show_original: 'View original report',
+    translation_original_preserved: 'The original report is preserved and has not been changed.',
   }
 };
 
@@ -487,6 +505,27 @@ const TRANSLATIONS = {
 
 /** Currently active language code: 'id' | 'en' */
 let currentLang = localStorage.getItem(LANG_KEY) || 'id';
+
+/** Apply the selected theme and keep the toggle state accessible. */
+function applyTheme(theme) {
+  const nextTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', nextTheme);
+  try { localStorage.setItem(THEME_KEY, nextTheme); } catch (e) { /* storage may be unavailable */ }
+
+  const toggle = $('themeToggle');
+  if (toggle) {
+    const isDark = nextTheme === 'dark';
+    toggle.setAttribute('aria-label', t(isDark ? 'theme_to_light' : 'theme_to_dark'));
+    toggle.setAttribute('title', t(isDark ? 'theme_to_light' : 'theme_to_dark'));
+    toggle.dataset.theme = nextTheme;
+    toggle.querySelector('.theme-icon-moon')?.toggleAttribute('hidden', isDark);
+    toggle.querySelector('.theme-icon-sun')?.toggleAttribute('hidden', !isDark);
+  }
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
 
 /** Translate a key using the current language. Falls back to key name. */
 function t(key) {
@@ -526,6 +565,15 @@ function applyTranslations() {
   const selector = $('langSelector');
   if (selector) selector.value = currentLang;
 
+  // Keep the theme control's accessible label and tooltip in the active language.
+  const activeTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const themeToggle = $('themeToggle');
+  if (themeToggle) {
+    const key = activeTheme === 'dark' ? 'theme_to_light' : 'theme_to_dark';
+    themeToggle.setAttribute('aria-label', t(key));
+    themeToggle.setAttribute('title', t(key));
+  }
+
   // Refresh topbar title for current page
   const titleKeys = {
     dashboard:   'topbar_title_dashboard',
@@ -557,6 +605,9 @@ let currentOriginalResult = null;   // stores the original-language result for t
 let lastFormData          = null;   // stores the last submitted form data for retry functionality
 let isAnalyzing           = false;
 let isTranslating         = false;
+let openReportRecordId    = null;
+let openReportRenderToken = 0;
+const translationRequests = new Map();
 
 // ============================================================
 // DOM Helpers
@@ -597,10 +648,80 @@ function setHtml(id, html) {
 function loadHistory() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const history = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(history)) return [];
+
+    // Backfill only metadata for legacy records. The original report object is
+    // copied unchanged, so existing history remains fully backward compatible.
+    let migrated = false;
+    const normalized = history.map(record => {
+      if (!record || record.sourceLanguage || record.language || !record.result) return record;
+      const detected = detectReportLanguage(record.result);
+      if (!detected) return record;
+      migrated = true;
+      return { ...record, sourceLanguage: detected };
+    });
+    if (migrated) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); }
+      catch (e) { console.warn('Could not migrate history language metadata:', e.message); }
+    }
+    return normalized;
   } catch {
     return [];
   }
+}
+
+function detectReportLanguage(result) {
+  const text = [];
+  const collect = value => {
+    if (typeof value === 'string') text.push(value.toLowerCase());
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+  };
+  collect(result);
+  const sample = text.join(' ');
+  const indonesianMarkers = [
+    'investigasi', 'pengirim', 'tidak disediakan', 'ringkasan', 'tingkat risiko',
+    'tindakan yang direkomendasikan', 'mencurigakan', 'berdasarkan', 'email ini'
+  ];
+  const englishMarkers = [
+    'investigation', 'sender', 'not provided', 'executive summary', 'risk level',
+    'recommended actions', 'suspicious', 'based on', 'this email'
+  ];
+  const idScore = indonesianMarkers.reduce((score, marker) => score + (sample.includes(marker) ? 1 : 0), 0);
+  const enScore = englishMarkers.reduce((score, marker) => score + (sample.includes(marker) ? 1 : 0), 0);
+  if (idScore === 0 && enScore === 0) return null;
+  return idScore >= enScore ? 'id' : 'en';
+}
+
+function loadTranslationCache() {
+  try {
+    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const cache = raw ? JSON.parse(raw) : {};
+    return cache && typeof cache === 'object' ? cache : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveTranslationCache(cache) {
+  try {
+    localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    console.warn('Could not save translation cache:', e.message);
+  }
+}
+
+function getCachedTranslation(recordId, language) {
+  return loadTranslationCache()[String(recordId)]?.[language] || null;
+}
+
+function cacheTranslation(recordId, language, result) {
+  const cache = loadTranslationCache();
+  const key = String(recordId);
+  if (!cache[key] || typeof cache[key] !== 'object') cache[key] = {};
+  cache[key][language] = result;
+  saveTranslationCache(cache);
 }
 
 function saveToHistory(formData, result) {
@@ -609,6 +730,7 @@ function saveToHistory(formData, result) {
     const record = {
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
+      sourceLanguage: currentLang,
       senderName:  formData.senderName,
       senderEmail: formData.senderEmail,
       subject:     formData.subject,
@@ -767,7 +889,7 @@ function refreshDashboard() {
         <td>${riskBadgeHtml(r.riskLevel)}</td>
         <td>${escapeHtml(r.threatClassification || '—')}</td>
         <td style="white-space:nowrap;color:var(--text-muted);font-size:0.8rem">${formatTimestamp(r.timestamp)}</td>
-        <td><button class="btn btn-ghost btn-xs" onclick="openHistoryRecord('${escapeHtml(r.id)}')">${t('recent_view_btn')}</button></td>
+        <td><button class="btn btn-ghost btn-xs" data-history-action="view" data-record-id="${escapeHtml(r.id)}">${t('recent_view_btn')}</button></td>
       </tr>
     `).join('');
   }
@@ -817,8 +939,8 @@ function refreshHistory() {
         <td style="font-size:0.8rem;color:var(--text-secondary)">${escapeHtml(r.threatClassification || '—')}</td>
         <td>
           <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-xs" onclick="openHistoryRecord('${escapeHtml(r.id)}')">${t('hist_view_btn')}</button>
-            <button class="btn btn-danger btn-xs" onclick="deleteRecord('${escapeHtml(r.id)}')">${t('hist_delete_btn')}</button>
+            <button class="btn btn-ghost btn-xs" data-history-action="view" data-record-id="${escapeHtml(r.id)}">${t('hist_view_btn')}</button>
+            <button class="btn btn-danger btn-xs" data-history-action="delete" data-record-id="${escapeHtml(r.id)}">${t('hist_delete_btn')}</button>
           </div>
         </td>
       </tr>
@@ -827,21 +949,150 @@ function refreshHistory() {
 }
 
 function openHistoryRecord(id) {
+  const recordId = String(id);
   const history = loadHistory();
-  const record  = history.find(r => r.id === id);
+  const record  = history.find(r => String(r.id) === recordId);
   if (!record) return;
 
+  openReportRecordId = recordId;
+  openReportRenderToken += 1;
   const modal = $('historyModal');
-  const body  = $('modalBody');
-
-  body.innerHTML = buildReportHtml(record.result, {
-    senderName:  record.senderName,
-    senderEmail: record.senderEmail,
-    subject:     record.subject,
-  });
-
   modal.style.display  = 'flex';
   document.body.style.overflow = 'hidden';
+  renderHistoryReport(record);
+}
+
+function historyReportMeta(record) {
+  return {
+    senderName: record.senderName,
+    senderEmail: record.senderEmail,
+    subject: record.subject,
+  };
+}
+
+function renderReportLoading() {
+  $('modalBody').innerHTML = `
+    <div class="report-translation-state">
+      <div class="spinner"></div>
+      <h3>${escapeHtml(t('translating_title'))}</h3>
+      <p>${escapeHtml(t('translating_subtitle'))}</p>
+    </div>`;
+}
+
+function renderReportTranslationError(record, errorMessage) {
+  $('modalBody').innerHTML = `
+    <div class="report-translation-error" role="alert">
+      <h3>${escapeHtml(t('error_translate_title'))}</h3>
+      <p>${escapeHtml(errorMessage || t('error_translate_msg'))}</p>
+      <button class="btn btn-primary btn-sm" data-history-action="retry-translation" data-record-id="${escapeHtml(record.id)}">
+        ${escapeHtml(t('btn_retry'))}
+      </button>
+      <button class="btn btn-ghost btn-sm" data-history-action="show-original" data-record-id="${escapeHtml(record.id)}">
+        ${escapeHtml(t('btn_show_original'))}
+      </button>
+    </div>
+    <p class="report-translation-note">${escapeHtml(t('translation_original_preserved'))}</p>`;
+}
+
+function showOriginalHistoryReport(record) {
+  $('modalBody').innerHTML = buildReportHtml(record.result, historyReportMeta(record));
+}
+
+function translateStoredReport(record, language) {
+  const requestKey = `${record.id}:${language}`;
+  if (translationRequests.has(requestKey)) return translationRequests.get(requestKey);
+
+  const request = fetch(TRANSLATE_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ result: record.result, language }),
+  }).then(async response => {
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.result) {
+      const error = new Error(data?.error || t('error_translate_msg'));
+      error.type = data?.type || `HTTP_${response.status}`;
+      throw error;
+    }
+    cacheTranslation(record.id, language, data.result);
+    return data.result;
+  }).finally(() => {
+    translationRequests.delete(requestKey);
+  });
+
+  translationRequests.set(requestKey, request);
+  return request;
+}
+
+async function renderHistoryReport(record) {
+  const token = openReportRenderToken;
+  const targetLanguage = currentLang;
+  const cached = getCachedTranslation(record.id, targetLanguage);
+  const sourceLanguage = record.sourceLanguage || record.language || detectReportLanguage(record.result);
+
+  // New records carry their source language. Legacy records are translated once
+  // per target language because their original language was not stored.
+  if (cached) {
+    $('modalBody').innerHTML = buildReportHtml(cached, historyReportMeta(record));
+    return;
+  }
+
+  if (sourceLanguage === targetLanguage) {
+    cacheTranslation(record.id, targetLanguage, record.result);
+    $('modalBody').innerHTML = buildReportHtml(record.result, historyReportMeta(record));
+    return;
+  }
+
+  renderReportLoading();
+  try {
+    const translated = await translateStoredReport(record, targetLanguage);
+    if (token !== openReportRenderToken || openReportRecordId !== String(record.id)) return;
+    $('modalBody').innerHTML = buildReportHtml(translated, historyReportMeta(record));
+  } catch (err) {
+    if (token !== openReportRenderToken || openReportRecordId !== String(record.id)) return;
+    const errorKey = {
+      RATE_LIMIT: 'error_translate_rate_limit',
+      AUTH_ERROR: 'error_translate_auth',
+      TIMEOUT: 'error_translate_timeout',
+      SERVICE_ERROR: 'error_translate_unavailable',
+      NETWORK_ERROR: 'error_translate_unavailable',
+    }[err.type];
+    renderReportTranslationError(record, errorKey ? t(errorKey) : t('error_translate_msg'));
+  }
+}
+
+function refreshOpenHistoryReport() {
+  if (!openReportRecordId) return;
+  const record = loadHistory().find(r => String(r.id) === openReportRecordId);
+  if (record) {
+    openReportRenderToken += 1;
+    renderHistoryReport(record);
+  }
+}
+
+function closeHistoryModal() {
+  openReportRenderToken += 1;
+  openReportRecordId = null;
+  $('historyModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function handleHistoryAction(event) {
+  const button = event.target.closest('[data-history-action][data-record-id]');
+  if (!button) return;
+  const id = button.dataset.recordId;
+  if (button.dataset.historyAction === 'view') openHistoryRecord(id);
+  if (button.dataset.historyAction === 'delete') deleteRecord(id);
+  if (button.dataset.historyAction === 'retry-translation') {
+    const record = loadHistory().find(r => String(r.id) === String(id));
+    if (record) {
+      openReportRenderToken += 1;
+      renderHistoryReport(record);
+    }
+  }
+  if (button.dataset.historyAction === 'show-original') {
+    const record = loadHistory().find(r => String(r.id) === String(id));
+    if (record) showOriginalHistoryReport(record);
+  }
 }
 
 function deleteRecord(id) {
@@ -1114,7 +1365,7 @@ function renderRiskBanner(result) {
   const classifEl = $('threatClassificationBadge');
 
   const risk = (result.riskLevel || 'UNKNOWN').toUpperCase();
-  const conf = (result.confidenceLevel || 'UNKNOWN').toUpperCase();
+  const conf = normalizedConfidenceLevel(result.confidenceLevel);
 
   riskEl.textContent = risk;
   riskEl.className   = `risk-value risk-${risk.toLowerCase()}`;
@@ -1224,10 +1475,23 @@ function renderClassificationBlock(result) {
       <p>${escapeHtml(result.riskExplanation || t('no_explanation'))}</p>
     </div>
     <div class="risk-explanation-block" style="margin-top:14px;">
-      <h4>${t('confidence_level_label')} — ${escapeHtml(result.confidenceLevel || '—')}</h4>
+      <h4>${t('confidence_level_label')} — ${escapeHtml(normalizedConfidenceLevel(result.confidenceLevel))}</h4>
       <p>${escapeHtml(result.confidenceExplanation || t('no_explanation'))}</p>
     </div>
   `;
+}
+
+// Helper to clean leading numbering prefixes from action/recommendation items
+// Handles: "1. ", "**1.** ", "1) ", "**1)** ", "1 - " (space-dash), etc.
+// Does NOT strip numbers that appear mid-sentence (e.g. "Use 2FA" or "Within 24 hours").
+function cleanActionNumbering(item) {
+  if (!item) return '';
+  return String(item)
+    // Covers: "1. ", "**1.** ", "1) ", "**1)** " (optionally followed by dash/em-dash)
+    .replace(/^\s*(?:\*\*)?\d+[\.\)](?:\*\*)?\s*[-–—]?\s*/, '')
+    // Covers: "1 - ", "2 — " (digit + space + dash, NOT preceded by other text)
+    .replace(/^\s*\d+\s+[-–—]\s+/, '')
+    .trim();
 }
 
 function renderList(containerId, items, listClass, type) {
@@ -1241,8 +1505,7 @@ function renderList(containerId, items, listClass, type) {
 
   if (type === 'action') {
     container.innerHTML = items.map((item, i) => {
-      // Strip any leading numbering that the AI may have included (e.g. "1. ", "2) ")
-      const clean = String(item).replace(/^\d+[\.\)]\s*/, '');
+      const clean = cleanActionNumbering(item);
       return `<li><span class="action-number">${i + 1}.</span> ${escapeHtml(clean)}</li>`;
     }).join('');
   } else {
@@ -1260,58 +1523,228 @@ function buildReportHtml(result, meta) {
   if (!result) return `<p style="color:var(--text-muted)">${t('modal_no_data')}</p>`;
 
   const r = result;
+  const info = r.emailInfo || {};
+  const evidence = r.evidenceAnalysis || {};
+
+  // Email info table rows matching Section 2
+  const emailInfoRows = [
+    [t('info_sender_name'),   info.senderName    || meta?.senderName  || '—'],
+    [t('info_sender_email'),  info.senderEmail   || meta?.senderEmail || '—'],
+    [t('info_sender_domain'), info.senderDomain  || '—'],
+    [t('info_subject'),       info.subject       || meta?.subject     || '—'],
+    [t('info_urls'),          info.urlsProvided  || t('info_none')],
+    [t('info_headers'),       info.headersProvided || t('info_not_provided')],
+    ['SPF',                   info.spf           || t('info_not_provided')],
+    ['DKIM',                  info.dkim          || t('info_not_provided')],
+    ['DMARC',                 info.dmarc         || t('info_not_provided')],
+  ];
+
+  // Evidence sections matching Section 8
+  const evidenceSections = [
+    { label: t('evidence_confirmed'),  cssClass: 'evidence-confirmed',  items: evidence.confirmedObservations || [] },
+    { label: t('evidence_suspicious'), cssClass: 'evidence-suspicious', items: evidence.suspiciousIndicators  || [] },
+    { label: t('evidence_unverified'), cssClass: 'evidence-unverified', items: evidence.unverifiedAssumptions  || [] },
+  ];
 
   return `
-    <div>
-      ${riskBadgeHtml(r.riskLevel)} &nbsp; ${confidenceBadgeHtml(r.confidenceLevel)}
-      <span style="margin-left:12px;font-size:0.85rem;color:var(--text-secondary)">${escapeHtml(r.threatClassification || '')}</span>
+    <!-- Top Risk & Confidence Banner -->
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;padding:14px 18px;background:var(--bg-elevated);border-radius:var(--radius-lg);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;">${t('risk_label')}:</span>
+        ${riskBadgeHtml(r.riskLevel)}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;">${t('confidence_label')}:</span>
+        ${confidenceValueBadgeHtml(r.confidenceLevel)}
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <span class="badge ${classificationBadgeClass(r.threatClassification)}">${escapeHtml(r.threatClassification || '—')}</span>
+      </div>
     </div>
 
-    <div style="margin:16px 0;padding:12px 16px;background:var(--bg-elevated);border-radius:var(--radius);">
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">${t('modal_exec_summary')}</div>
-      <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;">${escapeHtml(r.executiveSummary || '')}</p>
+    <!-- 1. Executive Summary -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec1')}</h3>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;margin:0;">${escapeHtml(r.executiveSummary || '')}</p>
+      </div>
     </div>
 
-    <div style="margin-bottom:16px;">
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;font-weight:700;">${t('modal_sender_analysis')}</div>
-      <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;">${escapeHtml(r.senderAnalysis || '')}</p>
+    <!-- 2. Email Information -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec2')}</h3>
+      </div>
+      <div class="card-body" style="padding:0;overflow-x:auto;">
+        <table class="data-table" style="margin:0;">
+          <tbody>
+            ${emailInfoRows.map(([label, value]) => `
+              <tr>
+                <td style="width:200px;font-weight:600;color:var(--text-muted);font-size:0.85rem;">${escapeHtml(label)}</td>
+                <td style="font-size:0.875rem;">${escapeHtml(value)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <div style="margin-bottom:16px;">
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;font-weight:700;">${t('modal_social_engineering')}</div>
-      <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;">${escapeHtml(r.socialEngineeringAnalysis || '')}</p>
+    <!-- 3. Sender Identity Analysis -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec3')}</h3>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin:0;">${escapeHtml(r.senderAnalysis || t('info_not_provided'))}</p>
+      </div>
     </div>
 
-    ${(r.suspiciousIndicators || []).length > 0 ? `
-    <div style="margin-bottom:16px;">
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;font-weight:700;">${t('modal_suspicious_indicators')}</div>
-      ${(r.suspiciousIndicators || []).map(ind => `
-        <div style="padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius);margin-bottom:6px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span class="severity-badge-${escapeHtml((ind.severity || 'LOW').toUpperCase())}">${escapeHtml(ind.severity || 'LOW')}</span>
-            <strong style="font-size:0.875rem;color:var(--text-primary);">${escapeHtml(ind.indicator || '')}</strong>
+    <!-- 4. Social Engineering Detection -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec4')}</h3>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin:0;">${escapeHtml(r.socialEngineeringAnalysis || t('info_not_provided'))}</p>
+      </div>
+    </div>
+
+    <!-- 5. URL and Domain Analysis -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec5')}</h3>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin:0;">${escapeHtml(r.urlAnalysis || t('info_not_provided'))}</p>
+      </div>
+    </div>
+
+    <!-- 6. Email Header & Authentication Analysis -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec6')}</h3>
+      </div>
+      <div class="card-body">
+        <p style="font-size:0.875rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin:0;">${escapeHtml(r.headerAnalysis || t('info_not_provided'))}</p>
+      </div>
+    </div>
+
+    <!-- 7. Suspicious Indicators -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec7')}</h3>
+      </div>
+      <div class="card-body">
+        ${(!r.suspiciousIndicators || r.suspiciousIndicators.length === 0) ? `
+          <p style="color:var(--text-muted);font-size:0.875rem;margin:0;">${t('no_indicators_msg')}</p>
+        ` : `
+          <div class="indicators-container">
+            ${r.suspiciousIndicators.map(ind => `
+              <div class="indicator-item">
+                <div class="indicator-severity">
+                  <span class="severity-badge-${escapeHtml((ind.severity || 'LOW').toUpperCase())}">${escapeHtml(ind.severity || 'LOW')}</span>
+                </div>
+                <div class="indicator-body">
+                  <div class="indicator-title">${escapeHtml(ind.indicator || '')}</div>
+                  <div class="indicator-category">${t('indicator_category_prefix')} ${escapeHtml(ind.category || '—')}</div>
+                  <div class="indicator-assessment">${escapeHtml(ind.assessment || '')}</div>
+                </div>
+              </div>
+            `).join('')}
           </div>
-          <div style="font-size:0.8rem;color:var(--text-muted);">${t('indicator_category_prefix')} ${escapeHtml(ind.category || '—')}</div>
-          <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">${escapeHtml(ind.assessment || '')}</div>
+        `}
+      </div>
+    </div>
+
+    <!-- 8. Evidence Analysis -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec8')}</h3>
+      </div>
+      <div class="card-body">
+        <div class="evidence-grid">
+          ${evidenceSections.map(s => `
+            <div class="evidence-section">
+              <div class="evidence-section-title ${escapeHtml(s.cssClass)}">${s.label}</div>
+              <ul class="evidence-list">
+                ${s.items.length
+                  ? s.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')
+                  : `<li style="color:var(--text-muted)">${t('evidence_no_items')}</li>`
+                }
+              </ul>
+            </div>
+          `).join('')}
         </div>
-      `).join('')}
-    </div>
-    ` : ''}
-
-    <div style="margin-bottom:16px;">
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;font-weight:700;">${t('modal_risk_explanation')}</div>
-      <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">${escapeHtml(r.riskExplanation || '')}</p>
+      </div>
     </div>
 
-    <div>
-      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;font-weight:700;">${t('modal_recommended_actions')}</div>
-      <ol style="padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;">
-        ${(r.recommendedActions || []).map((item, i) => `
-          <li style="font-size:0.85rem;color:var(--text-secondary);padding:8px 12px;background:var(--bg-elevated);border-radius:var(--radius);border-left:3px solid var(--accent);display:flex;gap:10px;">
-            <span style="font-weight:700;color:var(--accent);flex-shrink:0;">${i + 1}.</span> ${escapeHtml(item)}
-          </li>
-        `).join('')}
-      </ol>
+    <!-- 9–10. Threat Classification & Risk Assessment -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec910')}</h3>
+      </div>
+      <div class="card-body">
+        <div class="classification-block" style="margin-bottom:16px;">
+          <div>
+            <div class="classification-label">${t('classification_label')}</div>
+            <div class="classification-value" style="margin-top:4px;">
+              <span class="badge ${classificationBadgeClass(r.threatClassification)}">${escapeHtml(r.threatClassification || '—')}</span>
+            </div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <div>${riskBadgeHtml(r.riskLevel)}</div>
+            <div>${confidenceBadgeHtml(r.confidenceLevel)}</div>
+          </div>
+        </div>
+
+        <div class="risk-explanation">
+          <div class="risk-explanation-block">
+            <h4>${t('risk_level_label')} — ${escapeHtml(r.riskLevel || '—')}</h4>
+            <p>${escapeHtml(r.riskExplanation || t('no_explanation'))}</p>
+          </div>
+          <div class="risk-explanation-block" style="margin-top:14px;">
+            <h4>${t('confidence_level_label')} — ${escapeHtml(normalizedConfidenceLevel(r.confidenceLevel))}</h4>
+            <p>${escapeHtml(r.confidenceExplanation || t('no_explanation'))}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. Recommended Actions -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec11')}</h3>
+      </div>
+      <div class="card-body">
+        ${(!r.recommendedActions || r.recommendedActions.length === 0) ? `
+          <p style="color:var(--text-muted);font-size:0.875rem;margin:0;">${t('no_items_provided')}</p>
+        ` : `
+          <ol class="action-list">
+            ${r.recommendedActions.map((item, i) => {
+              const clean = cleanActionNumbering(item);
+              return `<li><span class="action-number">${i + 1}.</span> ${escapeHtml(clean)}</li>`;
+            }).join('')}
+          </ol>
+        `}
+      </div>
+    </div>
+
+    <!-- 12. Investigation Limitations -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3 class="card-title">${t('result_sec12')}</h3>
+      </div>
+      <div class="card-body">
+        ${(!r.investigationLimitations || r.investigationLimitations.length === 0) ? `
+          <p style="color:var(--text-muted);font-size:0.875rem;margin:0;">${t('no_items_provided')}</p>
+        ` : `
+          <ul class="limitation-list">
+            ${r.investigationLimitations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+          </ul>
+        `}
+      </div>
     </div>
   `;
 }
@@ -1331,8 +1764,20 @@ function riskBadgeHtml(level) {
   return `<span class="badge ${cls}">${escapeHtml(l)}</span>`;
 }
 
+function normalizedConfidenceLevel(level) {
+  const raw = String(level || '').toUpperCase();
+  const match = raw.match(/\b(LOW|MEDIUM|HIGH)\b/);
+  return match ? match[1] : 'UNKNOWN';
+}
+
+function confidenceValueBadgeHtml(level) {
+  const l = normalizedConfidenceLevel(level);
+  const cls = { HIGH: 'badge-conf-high', MEDIUM: 'badge-conf-medium', LOW: 'badge-conf-low' }[l] || 'badge-conf-low';
+  return `<span class="badge ${cls}">${escapeHtml(l)}</span>`;
+}
+
 function confidenceBadgeHtml(level) {
-  const l   = (level || 'UNKNOWN').toUpperCase();
+  const l = normalizedConfidenceLevel(level);
   const cls = { HIGH: 'badge-conf-high', MEDIUM: 'badge-conf-medium', LOW: 'badge-conf-low' }[l] || 'badge-conf-low';
   return `<span class="badge ${cls}">${t('confidence_prefix')} ${escapeHtml(l)}</span>`;
 }
@@ -1382,6 +1827,10 @@ function renderAboutPage() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ---- Theme ----
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+  $('themeToggle')?.addEventListener('click', toggleTheme);
+
   // ---- Language Selector ----
   const langSelector = $('langSelector');
   if (langSelector) {
@@ -1396,6 +1845,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (resultsVisible && currentOriginalResult) {
         translateResult(newLang);
       }
+      // Keep an open History report visible while translating it to the new language.
+      refreshOpenHistoryReport();
     });
   }
 
@@ -1477,24 +1928,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- History modal close ----
   $('modalClose')?.addEventListener('click', () => {
-    $('historyModal').style.display = 'none';
-    document.body.style.overflow = '';
+    closeHistoryModal();
   });
 
   $('historyModal')?.addEventListener('click', (e) => {
     if (e.target === $('historyModal')) {
-      $('historyModal').style.display = 'none';
-      document.body.style.overflow = '';
+      closeHistoryModal();
     }
   });
+
+  // Both Dashboard and History use the same localStorage-backed report action.
+  $('recentActivityBody')?.addEventListener('click', handleHistoryAction);
+  $('historyTableBody')?.addEventListener('click', handleHistoryAction);
+  $('modalBody')?.addEventListener('click', handleHistoryAction);
 
   // ---- Keyboard: close modal on Escape ----
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const modal = $('historyModal');
       if (modal && modal.style.display !== 'none') {
-        modal.style.display = 'none';
-        document.body.style.overflow = '';
+        closeHistoryModal();
       }
       closeMobileSidebar();
     }
@@ -1503,6 +1956,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- Initial load ----
   // Apply saved language first (sets all data-i18n text before navigation renders content)
   applyTranslations();
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
   checkApiHealth();
   navigateTo('dashboard');
   updateCharCount();
